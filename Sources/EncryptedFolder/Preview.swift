@@ -135,7 +135,7 @@ private final class PlayerSession {
 private final class EncryptedAssetLoader: NSObject, AVAssetResourceLoaderDelegate,
   @unchecked Sendable
 {
-  let queue = DispatchQueue(label: "com.mxcl.EncryptedFolder.media-loader", qos: .userInitiated)
+  let queue = DispatchQueue(label: "dev.mxcl.encrypted-folder.media-loader", qos: .userInitiated)
   private let reader: EncryptedFileReader
   private let type: UTType
 

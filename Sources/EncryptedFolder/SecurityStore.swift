@@ -17,7 +17,7 @@ enum SecurityStoreError: LocalizedError {
 }
 
 struct VaultKeychain {
-  private static let service = "com.mxcl.EncryptedFolder.master-key"
+  private static let service = "dev.mxcl.encrypted-folder.master-key"
 
   static var touchIDAvailable: Bool {
     let context = LAContext()
