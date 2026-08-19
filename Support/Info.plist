@@ -8,6 +8,10 @@
     <string>Encrypted Folder</string>
     <key>CFBundleExecutable</key>
     <string>EncryptedFolder</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>dev.mxcl.encrypted-folder</string>
     <key>CFBundleInfoDictionaryVersion</key>
