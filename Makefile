@@ -5,7 +5,7 @@ SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning | awk -F '"' '
 SIGNER := $(if $(SIGN_IDENTITY),$(SIGN_IDENTITY),-)
 SIGN_OPTIONS := $(if $(SIGN_IDENTITY),--options runtime --timestamp,)
 
-.PHONY: app install run test
+.PHONY: app check-launch install run test
 
 app:
 	swift build -c release --product EncryptedFolder
@@ -19,6 +19,9 @@ app:
 
 install:
 	./Scripts/install.sh
+
+check-launch: app
+	@set -e; "$(CONTENTS)/MacOS/EncryptedFolder" & pid=$$!; trap 'kill $$pid 2>/dev/null || true' EXIT; sleep 1; kill -0 $$pid
 
 run: app
 	open "$(APP)"
