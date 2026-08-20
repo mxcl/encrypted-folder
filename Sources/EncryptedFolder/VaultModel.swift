@@ -1,6 +1,7 @@
 import AppKit
 import EncryptedFolderCore
 import Foundation
+import LocalAuthentication
 import Observation
 import UniformTypeIdentifiers
 
@@ -94,13 +95,13 @@ final class VaultModel {
     }
   }
 
-  func unlockWithTouchID() {
+  func unlockWithTouchID(context: LAContext) {
     guard let vaultURL, let selectedVaultID else { return }
     isBusy = true
     Task {
       do {
+        let key = try VaultKeychain.read(vaultID: selectedVaultID, context: context)
         let opened = try await Task.detached {
-          let key = try VaultKeychain.read(vaultID: selectedVaultID)
           return try Vault.open(at: vaultURL, masterKeyData: key)
         }.value
         try finishUnlock(opened)

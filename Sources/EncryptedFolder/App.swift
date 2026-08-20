@@ -1,5 +1,6 @@
 import CoreTransferable
 import EncryptedFolderCore
+import LocalAuthentication
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -22,7 +23,7 @@ struct EncryptedFolderApp: App {
   @State private var model = VaultModel()
 
   var body: some Scene {
-    WindowGroup {
+    Window("Encrypted Folder", id: "main") {
       RootView(model: model)
         .frame(minWidth: 820, minHeight: 520)
         .focusedSceneValue(\.vaultModel, model)
@@ -94,6 +95,7 @@ private struct WelcomeView: View {
 
 private struct UnlockView: View {
   @Bindable var model: VaultModel
+  @State private var authenticationContext = LAContext()
 
   var body: some View {
     VStack(spacing: 20) {
@@ -104,6 +106,17 @@ private struct UnlockView: View {
         model.isCreating ? "Create Vault" : "Unlock \(model.vaultURL?.lastPathComponent ?? "Vault")"
       )
       .font(.title2)
+      if model.hasStoredKey {
+        LocalAuthenticationView(
+          "Unlock with Touch ID",
+          reason: Text("Unlock this encrypted folder"),
+          context: authenticationContext
+        ) { result in
+          if case .success = result {
+            model.unlockWithTouchID(context: authenticationContext)
+          }
+        }
+      }
       VStack(spacing: 12) {
         SecureField("Password", text: $model.password)
           .textFieldStyle(.roundedBorder)
@@ -119,10 +132,6 @@ private struct UnlockView: View {
       }
       .frame(width: 320)
       HStack {
-        if model.hasStoredKey {
-          Button("Unlock with Touch ID", systemImage: "touchid", action: model.unlockWithTouchID)
-            .buttonStyle(.borderedProminent)
-        }
         Button(model.isCreating ? "Create" : "Unlock", action: model.unlockWithPassword)
           .buttonStyle(.borderedProminent)
           .disabled(model.password.isEmpty || (model.isCreating && model.confirmedPassword.isEmpty))

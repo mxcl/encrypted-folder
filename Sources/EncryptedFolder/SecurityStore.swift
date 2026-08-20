@@ -72,8 +72,7 @@ struct VaultKeychain {
     guard addStatus == errSecSuccess else { throw SecurityStoreError.keychain(addStatus) }
   }
 
-  static func read(vaultID: UUID) throws -> Data {
-    let context = LAContext()
+  static func read(vaultID: UUID, context: LAContext) throws -> Data {
     context.localizedFallbackTitle = "Use Password"
     context.localizedReason = "Unlock this encrypted folder"
     var query = baseQuery(vaultID: vaultID)
