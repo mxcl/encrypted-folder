@@ -269,23 +269,34 @@ final class VaultModel {
   }
 
   func moveSelected(to destination: URL) {
-    guard let vault, let item = selectedItem else { return }
+    _ = moveItems(at: selectedItems.map(\.encryptedURL), to: destination)
+  }
+
+  @discardableResult
+  func moveItems(at urls: [URL], to destination: URL) -> Bool {
+    guard let vault, !urls.isEmpty else { return false }
+    let urls = Set(urls)
+    let items = items.filter { urls.contains($0.encryptedURL) }
+    guard items.count == urls.count, !urls.contains(destination) else { return false }
+    defer { reload() }
     do {
-      _ = try vault.move(item, into: destination)
-      reload()
+      for item in items { _ = try vault.move(item, into: destination) }
+      return true
     } catch {
       errorMessage = error.localizedDescription
+      return false
     }
   }
 
   func directoryChoices() -> [DirectoryChoice] {
     guard let vault else { return [] }
+    let selectedURLs = Set(selectedItems.filter(\.isDirectory).map(\.encryptedURL))
     var result: [DirectoryChoice] = [
       DirectoryChoice(name: vault.rootURL.lastPathComponent, url: vault.rootURL)
     ]
     func appendChildren(of directory: URL, prefix: String) throws {
       for item in try vault.items(in: directory) where item.isDirectory {
-        if item.id == selectedItem?.id { continue }
+        if selectedURLs.contains(item.encryptedURL) { continue }
         let choice = DirectoryChoice(name: prefix + item.name, url: item.encryptedURL)
         result.append(choice)
         try appendChildren(of: item.encryptedURL, prefix: prefix + item.name + " / ")
@@ -305,7 +316,8 @@ final class VaultModel {
     let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 320, height: 26))
     popup.addItems(withTitles: choices.map(\.name))
     let alert = NSAlert()
-    alert.messageText = "Move \(selectedItem?.name ?? "Item")"
+    alert.messageText =
+      selectedItems.count == 1 ? "Move \(selectedItems[0].name)" : "Move \(selectedItems.count) Items"
     alert.accessoryView = popup
     alert.addButton(withTitle: "Move")
     alert.addButton(withTitle: "Cancel")

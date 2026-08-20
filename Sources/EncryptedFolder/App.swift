@@ -1,6 +1,21 @@
+import CoreTransferable
 import EncryptedFolderCore
 import SwiftUI
 import UniformTypeIdentifiers
+
+private extension UTType {
+  static let vaultItems = UTType(exportedAs: "dev.mxcl.encrypted-folder.items")
+}
+
+private struct VaultItemTransfer: Codable, Transferable {
+  let vaultID: UUID
+  let itemURLs: [URL]
+
+  static var transferRepresentation: some TransferRepresentation {
+    CodableRepresentation(contentType: .vaultItems)
+      .visibility(.ownProcess)
+  }
+}
 
 @main
 struct EncryptedFolderApp: App {
@@ -148,6 +163,20 @@ private struct BrowserView: View {
             }
             .contentShape(Rectangle())
             .onTapGesture(count: 2) { model.enter(item) }
+            .draggable(
+              VaultItemTransfer(
+                vaultID: vault.id,
+                itemURLs: model.selection.contains(item.id)
+                  ? model.selectedItems.map(\.encryptedURL) : [item.encryptedURL]
+              )
+            ) {
+              Label(item.name, systemImage: item.isDirectory ? "folder.fill" : "doc")
+                .padding(8)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            }
+            .dropDestination(for: VaultItemTransfer.self) { transfers, _ in
+              item.isDirectory && move(transfers, into: item.encryptedURL)
+            }
             .contextMenu {
               Button("Export…", action: model.exportSelected)
               Button("Rename…", action: model.promptRename)
@@ -196,6 +225,8 @@ private struct BrowserView: View {
         Button("Import", systemImage: "square.and.arrow.down", action: model.importPanel)
         Button("Export", systemImage: "square.and.arrow.up", action: model.exportSelected)
           .disabled(model.selectedItems.isEmpty)
+        Button("Move", systemImage: "folder", action: model.promptMove)
+          .disabled(model.selectedItems.isEmpty)
         Button("New Folder", systemImage: "folder.badge.plus", action: model.promptCreateFolder)
         Button("Lock", systemImage: "lock", action: model.lock)
       }
@@ -210,6 +241,9 @@ private struct BrowserView: View {
         }
         Button(choice.name) { model.navigate(to: choice) }
           .buttonStyle(.plain)
+          .dropDestination(for: VaultItemTransfer.self) { transfers, _ in
+            move(transfers, into: choice.url)
+          }
       }
       Spacer()
     }
@@ -230,6 +264,11 @@ private struct BrowserView: View {
   private func kind(for item: VaultItem) -> String {
     if item.isDirectory { return "Folder" }
     return UTType(filenameExtension: item.name.pathExtension)?.localizedDescription ?? "Document"
+  }
+
+  private func move(_ transfers: [VaultItemTransfer], into destination: URL) -> Bool {
+    guard transfers.allSatisfy({ $0.vaultID == vault.id }) else { return false }
+    return model.moveItems(at: transfers.flatMap(\.itemURLs), to: destination)
   }
 }
 
@@ -267,7 +306,7 @@ private struct VaultCommands: Commands {
       Button("Rename…") { model?.promptRename() }
         .disabled(model?.selectedItem == nil)
       Button("Move…") { model?.promptMove() }
-        .disabled(model?.selectedItem == nil)
+        .disabled(model?.selectedItems.isEmpty != false)
       Button("Delete") { model?.confirmDelete() }
         .keyboardShortcut(.delete, modifiers: [])
         .disabled(model?.selectedItems.isEmpty != false)

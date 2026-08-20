@@ -240,11 +240,12 @@ public final class Vault: @unchecked Sendable {
 
   @discardableResult
   public func move(_ item: VaultItem, into destinationDirectory: URL) throws -> VaultItem {
-    if item.isDirectory,
-      destinationDirectory.standardizedFileURL.path.hasPrefix(
-        item.encryptedURL.standardizedFileURL.path + "/")
-    {
-      throw VaultError.unsupportedFile
+    if item.isDirectory {
+      let destinationPath = destinationDirectory.standardizedFileURL.path
+      let itemPath = item.encryptedURL.standardizedFileURL.path
+      guard destinationPath != itemPath, !destinationPath.hasPrefix(itemPath + "/") else {
+        throw VaultError.unsupportedFile
+      }
     }
     try ensureAvailable(item.name, in: destinationDirectory)
     let destinationID = try directoryID(at: destinationDirectory)

@@ -55,9 +55,16 @@ import Testing
   #expect(try vault.items(in: vault.rootURL).map(\.name) == ["private notes.txt"])
 
   let renamed = try vault.rename(imported, to: "renamed.txt")
+  let folder = try vault.createFolder(named: "Archive", in: vault.rootURL)
+  #expect(throws: VaultError.unsupportedFile) {
+    _ = try vault.move(folder, into: folder.encryptedURL)
+  }
+  let moved = try vault.move(renamed, into: folder.encryptedURL)
+  #expect(try vault.items(in: vault.rootURL).map(\.name) == ["Archive"])
+  #expect(try vault.items(in: folder.encryptedURL).map(\.name) == ["renamed.txt"])
   let exportDirectory = base.appendingPathComponent("export")
   try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: false)
-  try vault.export(renamed, to: exportDirectory)
+  try vault.export(moved, to: exportDirectory)
   #expect(
     try Data(contentsOf: exportDirectory.appendingPathComponent("renamed.txt"))
       == Data("classified".utf8))
