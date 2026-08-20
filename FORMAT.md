@@ -4,11 +4,14 @@ This is a native per-file format, not a partial gocryptfs implementation. A vaul
 
 ```text
 encrypted-folder.json
+RECOVER.command
 <base64url encrypted name>
 <base64url encrypted directory>/
   .encrypted-folder-directory
   <base64url encrypted name>
 ```
+
+`RECOVER.command` is an unencrypted, standalone v1 recovery tool. The app ignores that reserved root filename, and deleting it does not affect the encrypted data.
 
 `encrypted-folder.json` stores a random 256-bit master key wrapped with AES-256-GCM. The wrapping key is PBKDF2-HMAC-SHA256(password, 32-byte salt, 600,000 iterations). The config also stores the vault UUID and root directory ID. Touch ID, when enabled, stores the unwrapped master key in the device-only data-protection Keychain; it never stores the password.
 

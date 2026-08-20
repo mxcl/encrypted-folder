@@ -10,7 +10,10 @@ let package = Package(
     .executable(name: "EncryptedFolder", targets: ["EncryptedFolder"]),
   ],
   targets: [
-    .target(name: "EncryptedFolderCore"),
+    .target(
+      name: "EncryptedFolderCore",
+      resources: [.copy("Resources/RECOVER.command")]
+    ),
     .executableTarget(
       name: "EncryptedFolder",
       dependencies: ["EncryptedFolderCore"],

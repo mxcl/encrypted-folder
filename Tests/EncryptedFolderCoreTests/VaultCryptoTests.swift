@@ -66,6 +66,50 @@ import Testing
   }
 }
 
+@Test func bundledRecoveryScriptDecryptsVault() throws {
+  let base = try temporaryDirectory()
+  defer { try? FileManager.default.removeItem(at: base) }
+  let vaultURL = base.appendingPathComponent("vault")
+  let source = base.appendingPathComponent("source")
+  let nested = source.appendingPathComponent("nested")
+  try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+  try Data("recovered text".utf8).write(to: source.appendingPathComponent("notes.txt"))
+  try Data([0, 1, 2, 255]).write(to: nested.appendingPathComponent("bytes.bin"))
+
+  let vault = try Vault.create(at: vaultURL, password: "correct 🐎")
+  _ = try vault.importItem(at: source, into: vault.rootURL)
+  let recovery = vaultURL.appendingPathComponent(Vault.recoveryFileName)
+  #expect(try vault.items(in: vault.rootURL).map(\.name) == ["source"])
+  #expect(
+    ((try FileManager.default.attributesOfItem(atPath: recovery.path)[.posixPermissions]
+      as? NSNumber)?.intValue ?? 0) & 0o100 != 0)
+
+  let output = base.appendingPathComponent("recovered")
+  let process = Process()
+  let input = Pipe()
+  let diagnostics = Pipe()
+  process.executableURL = recovery
+  process.arguments = [output.path]
+  process.standardInput = input
+  process.standardOutput = diagnostics
+  process.standardError = diagnostics
+  try process.run()
+  try input.fileHandleForWriting.write(contentsOf: Data("correct 🐎\n".utf8))
+  try input.fileHandleForWriting.close()
+  process.waitUntilExit()
+  let message = String(
+    data: try diagnostics.fileHandleForReading.readToEnd() ?? Data(), encoding: .utf8) ?? ""
+  #expect(process.terminationStatus == 0, "\(message)")
+  guard process.terminationStatus == 0 else { return }
+
+  #expect(
+    try Data(contentsOf: output.appendingPathComponent("source/notes.txt"))
+      == Data("recovered text".utf8))
+  #expect(
+    try Data(contentsOf: output.appendingPathComponent("source/nested/bytes.bin"))
+      == Data([0, 1, 2, 255]))
+}
+
 private func temporaryDirectory() throws -> URL {
   let url = FileManager.default.temporaryDirectory.appendingPathComponent(
     UUID().uuidString, isDirectory: true)

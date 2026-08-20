@@ -12,6 +12,7 @@ app:
 	swift build -c release --product EncryptedFolder
 	mkdir -p "$(CONTENTS)/MacOS" "$(CONTENTS)/Resources"
 	cp .build/release/EncryptedFolder "$(CONTENTS)/MacOS/EncryptedFolder"
+	cp Sources/EncryptedFolderCore/Resources/RECOVER.command "$(CONTENTS)/Resources/RECOVER.command"
 	cp Support/Info.plist "$(CONTENTS)/Info.plist"
 	cp "$(PROFILE)" "$(CONTENTS)/embedded.provisionprofile"
 	xcrun actool --compile "$(CONTENTS)/Resources" --platform macosx --minimum-deployment-target 15.0 --app-icon AppIcon --output-partial-info-plist build/AppIcon-Info.plist "$(ICON)" >/dev/null

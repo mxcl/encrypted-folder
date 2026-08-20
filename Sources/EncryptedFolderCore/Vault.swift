@@ -13,6 +13,7 @@ public struct VaultItem: Identifiable, Hashable, Sendable {
 
 public final class Vault: @unchecked Sendable {
   public static let directoryMarker = ".encrypted-folder-directory"
+  public static let recoveryFileName = "RECOVER.command"
 
   public let rootURL: URL
   public let id: UUID
@@ -38,11 +39,25 @@ public final class Vault: @unchecked Sendable {
     }
     let (config, masterKey) = try VaultConfig.create(password: password)
     let configURL = url.appendingPathComponent(VaultConfig.fileName)
+    let recoveryURL = url.appendingPathComponent(Self.recoveryFileName)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    try encoder.encode(config).write(to: configURL, options: .atomic)
-    try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configURL.path)
-    return Vault(rootURL: url, config: config, masterKey: masterKey)
+    do {
+      try encoder.encode(config).write(to: configURL, options: .atomic)
+      try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configURL.path)
+      guard
+        let bundledRecovery = Bundle.main.url(
+          forResource: "RECOVER", withExtension: "command")
+          ?? Bundle.module.url(forResource: "RECOVER", withExtension: "command")
+      else { throw VaultError.invalidVault }
+      try Data(contentsOf: bundledRecovery).write(to: recoveryURL, options: .atomic)
+      try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: recoveryURL.path)
+      return Vault(rootURL: url, config: config, masterKey: masterKey)
+    } catch {
+      try? fileManager.removeItem(at: configURL)
+      try? fileManager.removeItem(at: recoveryURL)
+      throw error
+    }
   }
 
   public static func open(at url: URL, password: String) throws -> Vault {
@@ -84,6 +99,7 @@ public final class Vault: @unchecked Sendable {
       options: [.skipsHiddenFiles]
     ).compactMap { url in
       guard url.lastPathComponent != VaultConfig.fileName,
+        url.lastPathComponent != Self.recoveryFileName,
         url.lastPathComponent != Self.directoryMarker,
         url.pathExtension != "partial"
       else { return nil }

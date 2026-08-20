@@ -63,6 +63,7 @@ func unlock(_ config: VaultConfig, password: String) throws -> SymmetricKey {
   var passwordBytes = Array(password.utf8)
   defer { passwordBytes.resetBytes(in: passwordBytes.indices) }
   var derivedKey = Data(count: 32)
+  let derivedKeyCount = derivedKey.count
   defer { derivedKey.resetBytes(in: derivedKey.indices) }
   let status = derivedKey.withUnsafeMutableBytes { output in
     config.salt.withUnsafeBytes { salt in
@@ -75,7 +76,7 @@ func unlock(_ config: VaultConfig, password: String) throws -> SymmetricKey {
         CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
         UInt32(config.iterations),
         output.bindMemory(to: UInt8.self).baseAddress,
-        derivedKey.count
+        derivedKeyCount
       )
     }
   }

@@ -18,6 +18,12 @@ Built build/Encrypted Folder.app
 
 Pick an empty folder, choose a password, then drag files in. Drag them back to Finder to export. Images, PDFs, audio and video stay inside the app while viewing.
 
+## Recover without the app
+
+Every new vault includes `RECOVER.command`, a standalone copy of the v1 decryption code. Double-click it, enter the vault password, and it writes the plaintext to a new sibling folder named `<vault>-decrypted`. It never overwrites an existing folder and refuses to put plaintext inside the vault.
+
+The script needs Apple's Command Line Tools (`xcode-select --install`). Anyone who can modify the vault can replace its recovery script, so obtain a trusted copy before entering the password if the folder may have been tampered with.
+
 ## What it does not do
 
 - It does not mount a filesystem.
