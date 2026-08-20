@@ -18,12 +18,10 @@ struct SecurePreview: View {
       case .loading:
         ProgressView()
       case .image(let image):
-        ScrollView([.horizontal, .vertical]) {
-          Image(nsImage: image)
-            .resizable()
-            .scaledToFit()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
+        Image(nsImage: image)
+          .resizable()
+          .scaledToFit()
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
       case .pdf(let data):
         PDFPreview(data: data)
       case .player(let session):
