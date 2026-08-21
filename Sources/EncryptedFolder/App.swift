@@ -4,16 +4,16 @@ import LocalAuthentication
 import SwiftUI
 import UniformTypeIdentifiers
 
-private extension UTType {
-  static let vaultItems = UTType(exportedAs: "dev.mxcl.encrypted-folder.items")
-}
-
 private struct VaultItemTransfer: Codable, Transferable {
   let vaultID: UUID
   let itemURLs: [URL]
 
   static var transferRepresentation: some TransferRepresentation {
-    CodableRepresentation(contentType: .vaultItems)
+    ProxyRepresentation {
+      String(decoding: try JSONEncoder().encode($0), as: UTF8.self)
+    } importing: {
+      try JSONDecoder().decode(Self.self, from: Data($0.utf8))
+    }
       .visibility(.ownProcess)
   }
 }
@@ -162,7 +162,7 @@ private struct BrowserView: View {
       VStack(spacing: 0) {
         breadcrumbs
         Table(
-          model.items,
+          of: VaultItem.self,
           selection: $model.selection,
           columnCustomization: $columnCustomization
         ) {
@@ -177,28 +177,6 @@ private struct BrowserView: View {
                 .lineLimit(1)
             }
             .contentShape(Rectangle())
-            .onTapGesture(count: 2) { model.enter(item) }
-            .draggable(
-              VaultItemTransfer(
-                vaultID: vault.id,
-                itemURLs: model.selection.contains(item.id)
-                  ? model.selectedItems.map(\.encryptedURL) : [item.encryptedURL]
-              )
-            ) {
-              Label(item.name, systemImage: item.isDirectory ? "folder.fill" : "doc")
-                .padding(8)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-            }
-            .dropDestination(for: VaultItemTransfer.self) { transfers, _ in
-              item.isDirectory && move(transfers, into: item.encryptedURL)
-            }
-            .contextMenu {
-              Button("Export…", action: model.exportSelected)
-              Button("Rename…", action: model.promptRename)
-              Button("Move…", action: model.promptMove)
-              Divider()
-              Button("Delete", role: .destructive, action: model.confirmDelete)
-            }
           }
           .customizationID("name")
           .disabledCustomizationBehavior(.visibility)
@@ -218,6 +196,34 @@ private struct BrowserView: View {
           .width(min: 80, ideal: 120)
           .customizationID("kind")
           .defaultVisibility(.hidden)
+        } rows: {
+          ForEach(model.items) { item in
+            TableRow(item)
+              .draggable(
+                VaultItemTransfer(
+                  vaultID: vault.id,
+                  itemURLs: model.selection.contains(item.id)
+                    ? model.selectedItems.map(\.encryptedURL) : [item.encryptedURL]
+                )
+              )
+              .dropDestination(for: VaultItemTransfer.self) { transfers in
+                if item.isDirectory { _ = move(transfers, into: item.encryptedURL) }
+              }
+          }
+        }
+        .contextMenu(forSelectionType: URL.self) { selection in
+          Button("Export…") { withSelection(selection, perform: model.exportSelected) }
+          Button("Rename…") { withSelection(selection, perform: model.promptRename) }
+          Button("Move…") { withSelection(selection, perform: model.promptMove) }
+          Divider()
+          Button("Delete", role: .destructive) {
+            withSelection(selection, perform: model.confirmDelete)
+          }
+        } primaryAction: { selection in
+          guard selection.count == 1,
+            let item = model.items.first(where: { selection.contains($0.id) })
+          else { return }
+          model.enter(item)
         }
         .dropDestination(for: URL.self) { urls, _ in
           model.importItems(at: urls)
@@ -289,6 +295,11 @@ private struct BrowserView: View {
   private func move(_ transfers: [VaultItemTransfer], into destination: URL) -> Bool {
     guard transfers.allSatisfy({ $0.vaultID == vault.id }) else { return false }
     return model.moveItems(at: transfers.flatMap(\.itemURLs), to: destination)
+  }
+
+  private func withSelection(_ selection: Set<URL>, perform action: () -> Void) {
+    model.selection = selection
+    action()
   }
 }
 
