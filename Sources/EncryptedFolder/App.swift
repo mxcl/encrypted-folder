@@ -154,12 +154,18 @@ private struct UnlockView: View {
 private struct BrowserView: View {
   @Bindable var model: VaultModel
   let vault: Vault
+  @AppStorage("browserColumns") private var columnCustomization =
+    TableColumnCustomization<VaultItem>()
 
   var body: some View {
     NavigationSplitView {
       VStack(spacing: 0) {
         breadcrumbs
-        Table(model.items, selection: $model.selection) {
+        Table(
+          model.items,
+          selection: $model.selection,
+          columnCustomization: $columnCustomization
+        ) {
           TableColumn("Name") { item in
             HStack(spacing: 7) {
               FilePromiseDragSource(vault: vault, item: item)
@@ -194,6 +200,8 @@ private struct BrowserView: View {
               Button("Delete", role: .destructive, action: model.confirmDelete)
             }
           }
+          .customizationID("name")
+          .disabledCustomizationBehavior(.visibility)
           TableColumn("Size") { item in
             Text(
               item.byteSize.map {
@@ -203,10 +211,13 @@ private struct BrowserView: View {
             .foregroundStyle(.secondary)
           }
           .width(min: 70, ideal: 90)
+          .customizationID("size")
           TableColumn("Kind") { item in
             Text(kind(for: item)).foregroundStyle(.secondary)
           }
           .width(min: 80, ideal: 120)
+          .customizationID("kind")
+          .defaultVisibility(.hidden)
         }
         .dropDestination(for: URL.self) { urls, _ in
           model.importItems(at: urls)
