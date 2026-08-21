@@ -5,6 +5,12 @@ Finder for an encrypted folder. No mount, no container, no plaintext temp files.
 > [!WARNING]
 > This is new software with a new file format. Keep backups of the whole vault, especially `encrypted-folder.json`. Lose that file and the ciphertext is decorative.
 
+## Install it
+
+```sh
+$ brew install --cask mxcl/made/encrypted-folder
+```
+
 ## Build it
 
 Requires macOS 15 or newer and Xcode 26.
