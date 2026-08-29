@@ -106,14 +106,32 @@ private struct WebPreview: NSViewRepresentable {
   let data: Data
 
   func makeNSView(context: Context) -> WKWebView {
-    let view = WKWebView()
-    view.load(
-      data, mimeType: "video/webm", characterEncodingName: "utf-8",
-      baseURL: URL(string: "about:blank")!)
+    let configuration = WKWebViewConfiguration()
+    configuration.setURLSchemeHandler(
+      WebMURLSchemeHandler(data: data), forURLScheme: "encrypted-folder-webm")
+    let view = WKWebView(frame: .zero, configuration: configuration)
+    view.load(URLRequest(url: URL(string: "encrypted-folder-webm://preview/video.webm")!))
     return view
   }
 
   func updateNSView(_ view: WKWebView, context: Context) {}
+}
+
+private final class WebMURLSchemeHandler: NSObject, WKURLSchemeHandler {
+  let data: Data
+
+  init(data: Data) { self.data = data }
+
+  func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
+    task.didReceive(
+      URLResponse(
+        url: task.request.url!, mimeType: "video/webm", expectedContentLength: data.count,
+        textEncodingName: nil))
+    task.didReceive(data)
+    task.didFinish()
+  }
+
+  func webView(_ webView: WKWebView, stop task: any WKURLSchemeTask) {}
 }
 
 private struct PlayerPreview: NSViewRepresentable {
