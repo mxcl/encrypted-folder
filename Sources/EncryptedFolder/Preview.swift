@@ -5,6 +5,7 @@ import EncryptedFolderCore
 import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 struct SecurePreview: View {
   let vault: Vault
@@ -26,6 +27,8 @@ struct SecurePreview: View {
         PDFPreview(data: data)
       case .player(let session):
         PlayerPreview(player: session.player)
+      case .web(let data):
+        WebPreview(data: data)
       case .unsupported:
         ContentUnavailableView(
           "Preview Unavailable",
@@ -53,6 +56,8 @@ struct SecurePreview: View {
         content = .image(image)
       } else if type.conforms(to: .pdf) {
         content = .pdf(try await readAll())
+      } else if item.name.pathExtension.lowercased() == "webm" {
+        content = .web(try await readAll())
       } else if type.conforms(to: .audio) || type.conforms(to: .movie) {
         content = .player(
           try PlayerSession(reader: vault.reader(for: item), type: type, name: item.name))
@@ -75,6 +80,7 @@ private enum PreviewContent {
   case image(NSImage)
   case pdf(Data)
   case player(PlayerSession)
+  case web(Data)
   case unsupported
   case failed(String)
 }
@@ -94,6 +100,20 @@ private struct PDFPreview: NSViewRepresentable {
       view.document = PDFDocument(data: data)
     }
   }
+}
+
+private struct WebPreview: NSViewRepresentable {
+  let data: Data
+
+  func makeNSView(context: Context) -> WKWebView {
+    let view = WKWebView()
+    view.load(
+      data, mimeType: "video/webm", characterEncodingName: "utf-8",
+      baseURL: URL(string: "about:blank")!)
+    return view
+  }
+
+  func updateNSView(_ view: WKWebView, context: Context) {}
 }
 
 private struct PlayerPreview: NSViewRepresentable {
