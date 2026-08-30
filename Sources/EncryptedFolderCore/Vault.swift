@@ -277,7 +277,7 @@ public final class Vault: @unchecked Sendable {
     return try cryptor.reader(for: item.encryptedURL)
   }
 
-  private func directoryID(at url: URL) throws -> Data {
+  public func directoryID(at url: URL) throws -> Data {
     if url.standardizedFileURL == rootURL { return config.rootDirectoryID }
     let marker = url.appendingPathComponent(Self.directoryMarker)
     let values = try marker.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])

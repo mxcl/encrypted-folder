@@ -1,3 +1,4 @@
+import AppKit
 import CoreTransferable
 import EncryptedFolderCore
 import LocalAuthentication
@@ -14,8 +15,13 @@ private struct VaultItemTransfer: Codable, Transferable {
     } importing: {
       try JSONDecoder().decode(Self.self, from: Data($0.utf8))
     }
-      .visibility(.ownProcess)
+    .visibility(.ownProcess)
   }
+}
+
+private enum BrowserStyle: String {
+  case table
+  case icons
 }
 
 @main
@@ -156,77 +162,13 @@ private struct BrowserView: View {
   let vault: Vault
   @AppStorage("browserColumns") private var columnCustomization =
     TableColumnCustomization<VaultItem>()
+  @State private var browserStyle = BrowserStyle.table
 
   var body: some View {
     NavigationSplitView {
       VStack(spacing: 0) {
         breadcrumbs
-        Table(
-          of: VaultItem.self,
-          selection: $model.selection,
-          columnCustomization: $columnCustomization
-        ) {
-          TableColumn("Name") { item in
-            HStack(spacing: 7) {
-              Image(systemName: item.isDirectory ? "folder.fill" : icon(for: item))
-                .foregroundStyle(item.isDirectory ? .blue : .secondary)
-              Text(item.name)
-                .lineLimit(1)
-            }
-            .contentShape(Rectangle())
-          }
-          .customizationID("name")
-          .disabledCustomizationBehavior(.visibility)
-          TableColumn("Size") { item in
-            Text(
-              item.byteSize.map {
-                ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file)
-              } ?? "—"
-            )
-            .foregroundStyle(.secondary)
-          }
-          .width(min: 70, ideal: 90)
-          .customizationID("size")
-          TableColumn("Kind") { item in
-            Text(kind(for: item)).foregroundStyle(.secondary)
-          }
-          .width(min: 80, ideal: 120)
-          .customizationID("kind")
-          .defaultVisibility(.hidden)
-        } rows: {
-          ForEach(model.items) { item in
-            TableRow(item)
-              .draggable(
-                VaultItemTransfer(
-                  vaultID: vault.id,
-                  itemURLs: model.selection.contains(item.id)
-                    ? model.selectedItems.map(\.encryptedURL) : [item.encryptedURL]
-                )
-              )
-              .dropDestination(for: VaultItemTransfer.self) { transfers in
-                if item.isDirectory { _ = move(transfers, into: item.encryptedURL) }
-              }
-          }
-        }
-        .contextMenu(forSelectionType: URL.self) { selection in
-          Button("Export…") { withSelection(selection, perform: model.exportSelected) }
-          Button("Rename…") { withSelection(selection, perform: model.promptRename) }
-          Button("Move…") { withSelection(selection, perform: model.promptMove) }
-          Divider()
-          Button("Delete", role: .destructive) {
-            withSelection(selection, perform: model.confirmDelete)
-          }
-        } primaryAction: { selection in
-          guard selection.count == 1,
-            let item = model.items.first(where: { selection.contains($0.id) })
-          else { return }
-          model.enter(item)
-        }
-        .dropDestination(for: URL.self) { urls, _ in
-          model.importItems(at: urls)
-          return true
-        }
-        .onDeleteCommand(perform: model.confirmDelete)
+        browser
       }
       .navigationSplitViewColumnWidth(min: 380, ideal: 500)
     } detail: {
@@ -243,8 +185,19 @@ private struct BrowserView: View {
         ContentUnavailableView("No Selection", systemImage: "doc")
       }
     }
+    .onChange(of: model.currentDirectory, initial: true) {
+      browserStyle = savedBrowserStyle
+    }
     .toolbar {
       ToolbarItemGroup {
+        Picker("View", selection: browserStyleBinding) {
+          Label("Table", systemImage: "list.bullet").tag(BrowserStyle.table)
+          Label("Icons", systemImage: "square.grid.2x2").tag(BrowserStyle.icons)
+        }
+        .pickerStyle(.segmented)
+        .labelStyle(.iconOnly)
+        .frame(width: 72)
+        .help("Choose table or icon view for this folder")
         Button("Import", systemImage: "square.and.arrow.down", action: model.importPanel)
           .help("Import files into the current folder")
         Button("Export", systemImage: "square.and.arrow.up", action: model.exportSelected)
@@ -258,6 +211,129 @@ private struct BrowserView: View {
         Button("Lock", systemImage: "lock", action: model.lock)
           .help("Lock the vault")
       }
+    }
+  }
+
+  @ViewBuilder private var browser: some View {
+    switch browserStyle {
+    case .table:
+      table
+    case .icons:
+      iconGrid
+    }
+  }
+
+  private var table: some View {
+    Table(
+      of: VaultItem.self,
+      selection: $model.selection,
+      columnCustomization: $columnCustomization
+    ) {
+      TableColumn("Name") { item in
+        HStack(spacing: 7) {
+          Image(systemName: item.isDirectory ? "folder.fill" : icon(for: item))
+            .foregroundStyle(item.isDirectory ? .blue : .secondary)
+          Text(item.name)
+            .lineLimit(1)
+        }
+        .contentShape(Rectangle())
+      }
+      .customizationID("name")
+      .disabledCustomizationBehavior(.visibility)
+      TableColumn("Size") { item in
+        Text(
+          item.byteSize.map {
+            ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file)
+          } ?? "—"
+        )
+        .foregroundStyle(.secondary)
+      }
+      .width(min: 70, ideal: 90)
+      .customizationID("size")
+      TableColumn("Kind") { item in
+        Text(kind(for: item)).foregroundStyle(.secondary)
+      }
+      .width(min: 80, ideal: 120)
+      .customizationID("kind")
+      .defaultVisibility(.hidden)
+    } rows: {
+      ForEach(model.items) { item in
+        TableRow(item)
+          .draggable(transfer(for: item))
+          .dropDestination(for: VaultItemTransfer.self) { transfers in
+            if item.isDirectory { _ = move(transfers, into: item.encryptedURL) }
+          }
+      }
+    }
+    .contextMenu(forSelectionType: URL.self) { selection in
+      itemActions(for: selection)
+    } primaryAction: { selection in
+      guard selection.count == 1,
+        let item = model.items.first(where: { selection.contains($0.id) })
+      else { return }
+      model.enter(item)
+    }
+    .dropDestination(for: URL.self) { urls, _ in
+      model.importItems(at: urls)
+      return true
+    }
+    .onDeleteCommand(perform: model.confirmDelete)
+  }
+
+  private var iconGrid: some View {
+    ScrollView {
+      LazyVGrid(
+        columns: [GridItem(.adaptive(minimum: 88, maximum: 120), spacing: 12)], spacing: 12
+      ) {
+        ForEach(model.items) { item in
+          Button {
+            select(item)
+          } label: {
+            VStack(spacing: 7) {
+              Image(systemName: item.isDirectory ? "folder.fill" : icon(for: item))
+                .font(.system(size: 38))
+                .foregroundStyle(item.isDirectory ? .blue : .secondary)
+                .frame(height: 42)
+              Text(item.name)
+                .font(.caption)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity)
+            .background(
+              model.selection.contains(item.id) ? Color.accentColor.opacity(0.2) : .clear,
+              in: RoundedRectangle(cornerRadius: 8)
+            )
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .simultaneousGesture(TapGesture(count: 2).onEnded { model.enter(item) })
+          .draggable(transfer(for: item))
+          .dropDestination(for: VaultItemTransfer.self) { transfers, _ in
+            item.isDirectory && move(transfers, into: item.encryptedURL)
+          }
+          .contextMenu {
+            itemActions(for: contextSelection(for: item))
+          }
+        }
+      }
+      .padding(16)
+    }
+    .dropDestination(for: URL.self) { urls, _ in
+      model.importItems(at: urls)
+      return true
+    }
+    .onDeleteCommand(perform: model.confirmDelete)
+  }
+
+  @ViewBuilder private func itemActions(for selection: Set<URL>) -> some View {
+    Button("Export…") { withSelection(selection, perform: model.exportSelected) }
+    Button("Rename…") { withSelection(selection, perform: model.promptRename) }
+    Button("Move…") { withSelection(selection, perform: model.promptMove) }
+    Divider()
+    Button("Delete", role: .destructive) {
+      withSelection(selection, perform: model.confirmDelete)
     }
   }
 
@@ -287,6 +363,50 @@ private struct BrowserView: View {
     if type?.conforms(to: .movie) == true { return "film" }
     if type?.conforms(to: .pdf) == true { return "doc.richtext" }
     return "doc"
+  }
+
+  private var browserStyleBinding: Binding<BrowserStyle> {
+    Binding {
+      browserStyle
+    } set: { style in
+      browserStyle = style
+      if let key = browserStyleKey {
+        UserDefaults.standard.set(style.rawValue, forKey: key)
+      }
+    }
+  }
+
+  private var browserStyleKey: String? {
+    guard let directory = model.currentDirectory,
+      let directoryID = try? vault.directoryID(at: directory)
+    else { return nil }
+    return "browserStyle.\(vault.id.uuidString).\(directoryID.base64EncodedString())"
+  }
+
+  private var savedBrowserStyle: BrowserStyle {
+    browserStyleKey
+      .flatMap(UserDefaults.standard.string(forKey:))
+      .flatMap(BrowserStyle.init(rawValue:)) ?? .table
+  }
+
+  private func select(_ item: VaultItem) {
+    if NSEvent.modifierFlags.contains(.command) {
+      if !model.selection.insert(item.id).inserted { model.selection.remove(item.id) }
+    } else {
+      model.selection = [item.id]
+    }
+  }
+
+  private func contextSelection(for item: VaultItem) -> Set<URL> {
+    model.selection.contains(item.id) ? model.selection : [item.id]
+  }
+
+  private func transfer(for item: VaultItem) -> VaultItemTransfer {
+    VaultItemTransfer(
+      vaultID: vault.id,
+      itemURLs: model.selection.contains(item.id)
+        ? model.selectedItems.map(\.encryptedURL) : [item.encryptedURL]
+    )
   }
 
   private func kind(for item: VaultItem) -> String {

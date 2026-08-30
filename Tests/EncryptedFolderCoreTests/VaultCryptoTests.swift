@@ -56,12 +56,15 @@ import Testing
 
   let renamed = try vault.rename(imported, to: "renamed.txt")
   let folder = try vault.createFolder(named: "Archive", in: vault.rootURL)
+  let folderID = try vault.directoryID(at: folder.encryptedURL)
   #expect(throws: VaultError.unsupportedFile) {
     _ = try vault.move(folder, into: folder.encryptedURL)
   }
-  let moved = try vault.move(renamed, into: folder.encryptedURL)
-  #expect(try vault.items(in: vault.rootURL).map(\.name) == ["Archive"])
-  #expect(try vault.items(in: folder.encryptedURL).map(\.name) == ["renamed.txt"])
+  let renamedFolder = try vault.rename(folder, to: "Stored")
+  #expect(try vault.directoryID(at: renamedFolder.encryptedURL) == folderID)
+  let moved = try vault.move(renamed, into: renamedFolder.encryptedURL)
+  #expect(try vault.items(in: vault.rootURL).map(\.name) == ["Stored"])
+  #expect(try vault.items(in: renamedFolder.encryptedURL).map(\.name) == ["renamed.txt"])
   let exportDirectory = base.appendingPathComponent("export")
   try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: false)
   try vault.export(moved, to: exportDirectory)
@@ -125,8 +128,9 @@ import Testing
   try input.fileHandleForWriting.write(contentsOf: Data("correct 🐎\n".utf8))
   try input.fileHandleForWriting.close()
   process.waitUntilExit()
-  let message = String(
-    data: try diagnostics.fileHandleForReading.readToEnd() ?? Data(), encoding: .utf8) ?? ""
+  let message =
+    String(
+      data: try diagnostics.fileHandleForReading.readToEnd() ?? Data(), encoding: .utf8) ?? ""
   #expect(process.terminationStatus == 0, "\(message)")
   guard process.terminationStatus == 0 else { return }
 
