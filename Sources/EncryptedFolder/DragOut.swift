@@ -31,8 +31,8 @@ final class PromiseDragView: NSView, NSDraggingSource {
   required init?(coder: NSCoder) { nil }
 
   override func draw(_ dirtyRect: NSRect) {
-    NSColor.secondaryLabelColor.set()
     NSImage(systemSymbolName: "arrow.up.doc", accessibilityDescription: "Drag to export")?
+      .withSymbolConfiguration(.init(hierarchicalColor: .secondaryLabelColor))?
       .draw(in: bounds.insetBy(dx: 2, dy: 2))
   }
 
