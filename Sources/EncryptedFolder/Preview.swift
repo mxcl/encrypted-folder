@@ -2,10 +2,67 @@ import AVFoundation
 import AVKit
 import AppKit
 import EncryptedFolderCore
+import ImageIO
 import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
+
+struct SecureThumbnail: View {
+  let vault: Vault
+  let item: VaultItem
+  let fallbackIcon: String
+
+  @State private var thumbnail: NSImage?
+
+  var body: some View {
+    Group {
+      if let thumbnail {
+        Image(nsImage: thumbnail)
+          .resizable()
+          .scaledToFit()
+      } else {
+        Image(systemName: fallbackIcon)
+          .font(.system(size: 38))
+          .foregroundStyle(item.isDirectory ? .blue : .secondary)
+      }
+    }
+    .task(id: item.id) { await load() }
+  }
+
+  private func load() async {
+    guard !item.isDirectory else { return }
+    let type = UTType(filenameExtension: item.name.pathExtension) ?? .data
+    guard type.conforms(to: .image) || type.conforms(to: .pdf) else { return }
+    do {
+      let reader = try vault.reader(for: item)
+      let data = try await Task.detached { try reader.readAll() }.value
+      guard !Task.isCancelled else { return }
+      if type.conforms(to: .image) {
+        thumbnail = imageThumbnail(from: data)
+      } else {
+        thumbnail = PDFDocument(data: data)?.page(at: 0)?.thumbnail(
+          of: NSSize(width: 160, height: 160), for: .mediaBox)
+      }
+    } catch {
+      thumbnail = nil
+    }
+  }
+
+  private func imageThumbnail(from data: Data) -> NSImage? {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+      let image = CGImageSourceCreateThumbnailAtIndex(
+        source,
+        0,
+        [
+          kCGImageSourceCreateThumbnailFromImageAlways: true,
+          kCGImageSourceCreateThumbnailWithTransform: true,
+          kCGImageSourceThumbnailMaxPixelSize: 320,
+        ] as CFDictionary)
+    else { return nil }
+    return NSImage(cgImage: image, size: .zero)
+  }
+}
 
 struct SecurePreview: View {
   let vault: Vault

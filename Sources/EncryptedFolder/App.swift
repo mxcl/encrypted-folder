@@ -290,10 +290,12 @@ private struct BrowserView: View {
             select(item)
           } label: {
             VStack(spacing: 7) {
-              Image(systemName: item.isDirectory ? "folder.fill" : icon(for: item))
-                .font(.system(size: 38))
-                .foregroundStyle(item.isDirectory ? .blue : .secondary)
-                .frame(height: 42)
+              SecureThumbnail(
+                vault: vault,
+                item: item,
+                fallbackIcon: item.isDirectory ? "folder.fill" : icon(for: item)
+              )
+              .frame(maxWidth: 72, minHeight: 56, maxHeight: 56)
               Text(item.name)
                 .font(.caption)
                 .lineLimit(2)
