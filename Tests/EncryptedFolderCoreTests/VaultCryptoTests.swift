@@ -73,6 +73,27 @@ import Testing
   }
 }
 
+@Test func vaultListsFoldersByNameThenFilesByDateAdded() throws {
+  let base = try temporaryDirectory()
+  defer { try? FileManager.default.removeItem(at: base) }
+  let vault = try Vault.create(
+    at: base.appendingPathComponent("vault"), password: "correct horse battery staple")
+  let older = base.appendingPathComponent("older.txt")
+  let newer = base.appendingPathComponent("newer.txt")
+  try Data().write(to: older)
+  try Data().write(to: newer)
+
+  _ = try vault.createFolder(named: "Zebra", in: vault.rootURL)
+  _ = try vault.createFolder(named: "Archive", in: vault.rootURL)
+  _ = try vault.importItem(at: older, into: vault.rootURL)
+  Thread.sleep(forTimeInterval: 0.02)
+  _ = try vault.importItem(at: newer, into: vault.rootURL)
+
+  #expect(
+    try vault.items(in: vault.rootURL).map(\.name)
+      == ["Archive", "Zebra", "newer.txt", "older.txt"])
+}
+
 @Test func bundledRecoveryScriptDecryptsVault() throws {
   let base = try temporaryDirectory()
   defer { try? FileManager.default.removeItem(at: base) }

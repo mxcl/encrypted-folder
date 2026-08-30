@@ -95,34 +95,45 @@ public final class Vault: @unchecked Sendable {
     let directoryID = try self.directoryID(at: directory)
     return try fileManager.contentsOfDirectory(
       at: directory,
-      includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
+      includingPropertiesForKeys: [
+        .addedToDirectoryDateKey, .creationDateKey, .isDirectoryKey, .isRegularFileKey,
+        .isSymbolicLinkKey,
+      ],
       options: [.skipsHiddenFiles]
-    ).compactMap { url in
+    ).compactMap { url -> (item: VaultItem, dateAdded: Date)? in
       guard url.lastPathComponent != VaultConfig.fileName,
         url.lastPathComponent != Self.recoveryFileName,
         url.lastPathComponent != Self.directoryMarker,
         url.pathExtension != "partial"
       else { return nil }
       let values = try url.resourceValues(forKeys: [
-        .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey,
+        .addedToDirectoryDateKey, .creationDateKey, .isDirectoryKey, .isRegularFileKey,
+        .isSymbolicLinkKey,
       ])
       guard values.isSymbolicLink != true,
         values.isDirectory == true || values.isRegularFile == true
       else { return nil }
       let name = try cryptor.decryptName(url.lastPathComponent, directoryID: directoryID)
       let size = values.isDirectory == true ? nil : try cryptor.reader(for: url).plainSize
-      return VaultItem(
-        name: name,
-        isDirectory: values.isDirectory == true,
-        byteSize: size,
-        encryptedURL: url,
-        parentDirectoryID: directoryID
+      return (
+        VaultItem(
+          name: name,
+          isDirectory: values.isDirectory == true,
+          byteSize: size,
+          encryptedURL: url,
+          parentDirectoryID: directoryID
+        ),
+        values.addedToDirectoryDate ?? values.creationDate ?? .distantPast
       )
     }
     .sorted {
-      if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
-      return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+      if $0.item.isDirectory != $1.item.isDirectory { return $0.item.isDirectory }
+      if $0.item.isDirectory || $0.dateAdded == $1.dateAdded {
+        return $0.item.name.localizedStandardCompare($1.item.name) == .orderedAscending
+      }
+      return $0.dateAdded > $1.dateAdded
     }
+    .map(\.item)
   }
 
   @discardableResult
