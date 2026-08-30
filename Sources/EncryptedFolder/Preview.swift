@@ -107,6 +107,11 @@ private struct WebPreview: NSViewRepresentable {
 
   func makeNSView(context: Context) -> WKWebView {
     let configuration = WKWebViewConfiguration()
+    configuration.userContentController.addUserScript(
+      WKUserScript(
+        source: "document.querySelector('video')?.setAttribute('loop', '')",
+        injectionTime: .atDocumentEnd,
+        forMainFrameOnly: true))
     configuration.setURLSchemeHandler(
       WebMURLSchemeHandler(data: data), forURLScheme: "encrypted-folder-webm")
     let view = WKWebView(frame: .zero, configuration: configuration)
@@ -158,13 +163,23 @@ private struct PlayerPreview: NSViewRepresentable {
 private final class PlayerSession {
   let player: AVPlayer
   private let loader: EncryptedAssetLoader
+  private let looper: AVPlayerLooper?
 
   init(reader: EncryptedFileReader, type: UTType, name: String) throws {
     loader = EncryptedAssetLoader(reader: reader, type: type)
     let ext = name.pathExtension.isEmpty ? "bin" : name.pathExtension
     let asset = AVURLAsset(url: URL(string: "encrypted-folder://vault/asset.\(ext)")!)
     asset.resourceLoader.setDelegate(loader, queue: loader.queue)
-    player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
+    let item = AVPlayerItem(asset: asset)
+    if type.conforms(to: .movie) {
+      let player = AVQueuePlayer()
+      self.player = player
+      looper = AVPlayerLooper(player: player, templateItem: item)
+      player.play()
+    } else {
+      player = AVPlayer(playerItem: item)
+      looper = nil
+    }
   }
 }
 
