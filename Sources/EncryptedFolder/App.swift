@@ -168,9 +168,6 @@ private struct BrowserView: View {
         ) {
           TableColumn("Name") { item in
             HStack(spacing: 7) {
-              FilePromiseDragSource(vault: vault, item: item)
-                .frame(width: 18, height: 18)
-                .help("Drag to Finder to export")
               Image(systemName: item.isDirectory ? "folder.fill" : icon(for: item))
                 .foregroundStyle(item.isDirectory ? .blue : .secondary)
               Text(item.name)
