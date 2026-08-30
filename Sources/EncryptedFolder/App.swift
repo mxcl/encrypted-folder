@@ -249,12 +249,17 @@ private struct BrowserView: View {
     .toolbar {
       ToolbarItemGroup {
         Button("Import", systemImage: "square.and.arrow.down", action: model.importPanel)
+          .help("Import files into the current folder")
         Button("Export", systemImage: "square.and.arrow.up", action: model.exportSelected)
           .disabled(model.selectedItems.isEmpty)
+          .help("Export selected items to Finder")
         Button("Move", systemImage: "folder", action: model.promptMove)
           .disabled(model.selectedItems.isEmpty)
+          .help("Move selected items")
         Button("New Folder", systemImage: "folder.badge.plus", action: model.promptCreateFolder)
+          .help("Create a folder")
         Button("Lock", systemImage: "lock", action: model.lock)
+          .help("Lock the vault")
       }
     }
   }
