@@ -291,7 +291,8 @@ private struct BrowserView: View {
               item: item,
               fallbackIcon: item.isDirectory ? "folder.fill" : icon(for: item)
             )
-            .frame(maxWidth: 72, minHeight: 56, maxHeight: 56)
+            .frame(width: 72, height: 56)
+            .clipped()
             Text(item.name)
               .font(.caption)
               .lineLimit(2)

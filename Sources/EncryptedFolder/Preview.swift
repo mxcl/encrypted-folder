@@ -24,7 +24,7 @@ struct SecureThumbnail: View {
       } else if let thumbnail {
         Image(nsImage: thumbnail)
           .resizable()
-          .scaledToFit()
+          .scaledToFill()
       } else {
         Image(systemName: fallbackIcon)
           .font(.system(size: 38))
@@ -219,7 +219,7 @@ private struct WebMThumbnail: NSViewRepresentable {
             video.addEventListener('seeked', () => video.pause());
             document.documentElement.style.cssText = 'width:100%;height:100%;margin:0;background:#000';
             document.body.style.cssText = 'width:100%;height:100%;margin:0;background:#000';
-            video.style.cssText = 'width:100%;height:100%;object-fit:contain';
+            video.style.cssText = 'width:100%;height:100%;object-fit:cover';
             if (video.readyState >= 2) showFrame();
           })()
           """,
