@@ -100,8 +100,14 @@ private struct WelcomeView: View {
 }
 
 private struct UnlockView: View {
+  private enum Field: Hashable {
+    case password
+    case confirmation
+  }
+
   @Bindable var model: VaultModel
   @State private var authenticationContext = LAContext()
+  @FocusState private var focusedField: Field?
 
   var body: some View {
     VStack {
@@ -161,11 +167,13 @@ private struct UnlockView: View {
           SecureField("Password", text: $model.password)
             .textFieldStyle(.roundedBorder)
             .textContentType(model.isCreating ? .newPassword : .password)
+            .focused($focusedField, equals: .password)
             .onSubmit(model.unlockWithPassword)
           if model.isCreating {
             SecureField("Confirm Password", text: $model.confirmedPassword)
               .textFieldStyle(.roundedBorder)
               .textContentType(.newPassword)
+              .focused($focusedField, equals: .confirmation)
               .onSubmit(model.unlockWithPassword)
           }
           if model.touchIDAvailable && !model.hasStoredKey {
@@ -194,6 +202,10 @@ private struct UnlockView: View {
       }
       // Keep the form readable without stretching controls across a large Mac window.
       .frame(maxWidth: 360)
+      .task {
+        await Task.yield()
+        focusedField = nil
+      }
       Spacer()
     }
     .padding()
