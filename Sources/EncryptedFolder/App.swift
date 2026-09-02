@@ -100,51 +100,26 @@ private struct WelcomeView: View {
 }
 
 private struct UnlockView: View {
-  private enum Field: Hashable {
-    case password
-    case confirmation
-  }
-
   @Bindable var model: VaultModel
   @State private var authenticationContext = LAContext()
-  @FocusState private var focusedField: Field?
 
   var body: some View {
     VStack {
       Spacer()
       VStack {
         VStack {
-          Image(systemName: model.isCreating ? "folder.badge.plus" : "lock.fill")
-            .font(.largeTitle)
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(.tint)
-            .accessibilityHidden(true)
-          Text(title)
+          Text(model.isCreating ? "Vault Folder" : "Selected Vault")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+          Label(vaultName, systemImage: model.isCreating ? "folder.badge.plus" : "folder.fill")
             .font(.title2.bold())
             .accessibilityAddTraits(.isHeader)
-          Text(subtitle)
+          Text(vaultPath)
+            .font(.caption)
             .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-        }
-        .padding(.bottom)
-
-        GroupBox(model.isCreating ? "Vault Folder" : "Selected Vault") {
-          HStack {
-            Image(systemName: "folder.fill")
-              .foregroundStyle(.tint)
-              .accessibilityHidden(true)
-            VStack(alignment: .leading) {
-              Text(vaultName)
-                .font(.headline)
-              Text(vaultPath)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(vaultPath)
-            }
-            Spacer()
-          }
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .help(vaultPath)
         }
         .padding(.bottom)
 
@@ -162,18 +137,14 @@ private struct UnlockView: View {
         }
 
         VStack(alignment: .leading) {
-          Text(model.hasStoredKey ? "Or enter your password" : "Password")
-            .font(.headline)
           SecureField("Password", text: $model.password)
             .textFieldStyle(.roundedBorder)
             .textContentType(model.isCreating ? .newPassword : .password)
-            .focused($focusedField, equals: .password)
             .onSubmit(model.unlockWithPassword)
           if model.isCreating {
             SecureField("Confirm Password", text: $model.confirmedPassword)
               .textFieldStyle(.roundedBorder)
               .textContentType(.newPassword)
-              .focused($focusedField, equals: .confirmation)
               .onSubmit(model.unlockWithPassword)
           }
           if model.touchIDAvailable && !model.hasStoredKey {
@@ -181,6 +152,15 @@ private struct UnlockView: View {
           }
 
           HStack {
+            Menu("Vault Options", systemImage: "ellipsis.circle") {
+              Button("Choose Another Vault…") { model.chooseVault(create: false) }
+              Button("Create New Vault…") { model.chooseVault(create: true) }
+              if model.hasStoredKey {
+                Divider()
+                Button("Forget Touch ID", action: model.forgetTouchID)
+              }
+            }
+            .menuStyle(.borderlessButton)
             Spacer()
             Button(model.isCreating ? "Create Vault" : "Unlock", action: model.unlockWithPassword)
               .keyboardShortcut(.defaultAction)
@@ -188,31 +168,16 @@ private struct UnlockView: View {
           .controlSize(.large)
         }
         .controlSize(.large)
-        .padding(.bottom)
-
-        Menu("Vault Options", systemImage: "ellipsis.circle") {
-          Button("Choose Another Vault…") { model.chooseVault(create: false) }
-          Button("Create New Vault…") { model.chooseVault(create: true) }
-          if model.hasStoredKey {
-            Divider()
-            Button("Forget Touch ID", action: model.forgetTouchID)
-          }
-        }
-        .menuStyle(.borderlessButton)
       }
       // Keep the form readable without stretching controls across a large Mac window.
       .frame(maxWidth: 360)
       .task {
         await Task.yield()
-        focusedField = nil
+        NSApp.keyWindow?.makeFirstResponder(nil)
       }
       Spacer()
     }
     .padding()
-  }
-
-  private var title: String {
-    model.isCreating ? "Create a Vault" : "Unlock Vault"
   }
 
   private var vaultName: String {
@@ -221,16 +186,6 @@ private struct UnlockView: View {
 
   private var vaultPath: String {
     model.vaultURL?.path ?? ""
-  }
-
-  private var subtitle: String {
-    if model.isCreating {
-      "Choose a password to protect this encrypted folder."
-    } else if model.hasStoredKey {
-      "Use Touch ID or enter your password."
-    } else {
-      "Enter your password to continue."
-    }
   }
 }
 
