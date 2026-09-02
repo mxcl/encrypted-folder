@@ -14,10 +14,14 @@ struct SecureThumbnail: View {
   let fallbackIcon: String
 
   @State private var thumbnail: NSImage?
+  @State private var webMData: Data?
 
   var body: some View {
     Group {
-      if let thumbnail {
+      if let webMData {
+        WebMThumbnail(data: webMData)
+          .allowsHitTesting(false)
+      } else if let thumbnail {
         Image(nsImage: thumbnail)
           .resizable()
           .scaledToFit()
@@ -32,13 +36,20 @@ struct SecureThumbnail: View {
 
   private func load() async {
     guard !item.isDirectory else { return }
-    let type = UTType(filenameExtension: item.name.pathExtension) ?? .data
+    let fileExtension = item.name.pathExtension.lowercased()
+    let type = UTType(filenameExtension: fileExtension) ?? .data
+    let isWebM = fileExtension == "webm"
     guard
       type.conforms(to: .image) || type.conforms(to: .pdf) || type.conforms(to: .movie)
+        || isWebM
     else { return }
     do {
       let reader = try vault.reader(for: item)
-      if type.conforms(to: .image) || type.conforms(to: .pdf) {
+      if isWebM {
+        let data = try await Task.detached { try reader.readAll() }.value
+        guard !Task.isCancelled else { return }
+        webMData = data
+      } else if type.conforms(to: .image) || type.conforms(to: .pdf) {
         let data = try await Task.detached { try reader.readAll() }.value
         guard !Task.isCancelled else { return }
         if type.conforms(to: .image) {
@@ -173,20 +184,63 @@ private struct WebPreview: NSViewRepresentable {
   let data: Data
 
   func makeNSView(context: Context) -> WKWebView {
-    let configuration = WKWebViewConfiguration()
+    let configuration = webMConfiguration(data: data)
     configuration.userContentController.addUserScript(
       WKUserScript(
         source: "document.querySelector('video')?.setAttribute('loop', '')",
         injectionTime: .atDocumentEnd,
         forMainFrameOnly: true))
-    configuration.setURLSchemeHandler(
-      WebMURLSchemeHandler(data: data), forURLScheme: "encrypted-folder-webm")
     let view = WKWebView(frame: .zero, configuration: configuration)
     view.load(URLRequest(url: URL(string: "encrypted-folder-webm://preview/video.webm")!))
     return view
   }
 
   func updateNSView(_ view: WKWebView, context: Context) {}
+}
+
+private struct WebMThumbnail: NSViewRepresentable {
+  let data: Data
+
+  func makeNSView(context: Context) -> WKWebView {
+    let configuration = webMConfiguration(data: data)
+    configuration.userContentController.addUserScript(
+      WKUserScript(
+        source: """
+          (() => {
+            const video = document.querySelector('video');
+            if (!video) return;
+            video.controls = false;
+            video.muted = true;
+            const showFrame = () => {
+              video.pause();
+              if (video.duration > 0.1) video.currentTime = 0.1;
+            };
+            video.addEventListener('loadeddata', showFrame, { once: true });
+            video.addEventListener('seeked', () => video.pause());
+            document.documentElement.style.cssText = 'width:100%;height:100%;margin:0;background:#000';
+            document.body.style.cssText = 'width:100%;height:100%;margin:0;background:#000';
+            video.style.cssText = 'width:100%;height:100%;object-fit:contain';
+            if (video.readyState >= 2) showFrame();
+          })()
+          """,
+        injectionTime: .atDocumentEnd,
+        forMainFrameOnly: true))
+    let view = WKWebView(frame: .zero, configuration: configuration)
+    view.setAccessibilityElement(false)
+    view.load(URLRequest(url: URL(string: "encrypted-folder-webm://preview/video.webm")!))
+    return view
+  }
+
+  func updateNSView(_ view: WKWebView, context: Context) {}
+}
+
+@MainActor
+private func webMConfiguration(data: Data) -> WKWebViewConfiguration {
+  let configuration = WKWebViewConfiguration()
+  configuration.websiteDataStore = .nonPersistent()
+  configuration.setURLSchemeHandler(
+    WebMURLSchemeHandler(data: data), forURLScheme: "encrypted-folder-webm")
+  return configuration
 }
 
 private final class WebMURLSchemeHandler: NSObject, WKURLSchemeHandler {
