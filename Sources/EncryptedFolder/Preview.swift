@@ -219,7 +219,7 @@ private struct WebMThumbnail: NSViewRepresentable {
             video.addEventListener('seeked', () => video.pause());
             document.documentElement.style.cssText = 'width:100%;height:100%;margin:0;background:#000';
             document.body.style.cssText = 'width:100%;height:100%;margin:0;background:#000';
-            video.style.cssText = 'width:100%;height:100%;object-fit:cover';
+            video.style.cssText = 'display:block;width:100%;height:100%;margin:0;padding:0;object-fit:cover';
             if (video.readyState >= 2) showFrame();
           })()
           """,
@@ -227,7 +227,9 @@ private struct WebMThumbnail: NSViewRepresentable {
         forMainFrameOnly: true))
     let view = WKWebView(frame: .zero, configuration: configuration)
     view.setAccessibilityElement(false)
-    view.load(URLRequest(url: URL(string: "encrypted-folder-webm://preview/video.webm")!))
+    view.loadHTMLString(
+      "<video autoplay muted src='video.webm'></video>",
+      baseURL: URL(string: "encrypted-folder-webm://preview/"))
     return view
   }
 
