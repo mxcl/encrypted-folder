@@ -107,43 +107,80 @@ private struct UnlockView: View {
     VStack {
       Spacer()
       VStack {
-        Image(systemName: model.isCreating ? "folder.badge.plus" : "lock.fill")
-          .font(.largeTitle)
-          .symbolRenderingMode(.hierarchical)
-          .foregroundStyle(.tint)
-          .accessibilityHidden(true)
-        Text(title)
-          .font(.title2.bold())
-          .accessibilityAddTraits(.isHeader)
-        Text(subtitle)
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
-
-        SecureField("Password", text: $model.password)
-          .textFieldStyle(.roundedBorder)
-          .textContentType(model.isCreating ? .newPassword : .password)
-          .onSubmit(model.unlockWithPassword)
-        if model.isCreating {
-          SecureField("Confirm Password", text: $model.confirmedPassword)
-            .textFieldStyle(.roundedBorder)
-            .textContentType(.newPassword)
-            .onSubmit(model.unlockWithPassword)
+        VStack {
+          Image(systemName: model.isCreating ? "folder.badge.plus" : "lock.fill")
+            .font(.largeTitle)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(.tint)
+            .accessibilityHidden(true)
+          Text(title)
+            .font(.title2.bold())
+            .accessibilityAddTraits(.isHeader)
+          Text(subtitle)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
         }
-        if model.touchIDAvailable && !model.hasStoredKey {
-          Toggle("Use Touch ID on this Mac", isOn: $model.rememberWithTouchID)
-        }
+        .padding(.bottom)
 
-        HStack {
-          if model.hasStoredKey {
-            Button("Use Touch ID", systemImage: "touchid") {
+        GroupBox(model.isCreating ? "Vault Folder" : "Selected Vault") {
+          HStack {
+            Image(systemName: "folder.fill")
+              .foregroundStyle(.tint)
+              .accessibilityHidden(true)
+            VStack(alignment: .leading) {
+              Text(vaultName)
+                .font(.headline)
+              Text(vaultPath)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(vaultPath)
+            }
+            Spacer()
+          }
+        }
+        .padding(.bottom)
+
+        if model.hasStoredKey {
+          LocalAuthenticationView(
+            "Unlock with Touch ID",
+            reason: Text("Unlock \(vaultName)"),
+            context: authenticationContext
+          ) { result in
+            if case .success = result {
               model.unlockWithTouchID(context: authenticationContext)
             }
           }
-          Spacer()
-          Button(model.isCreating ? "Create Vault" : "Unlock", action: model.unlockWithPassword)
-            .keyboardShortcut(.defaultAction)
+          .padding(.bottom)
+        }
+
+        VStack(alignment: .leading) {
+          Text(model.hasStoredKey ? "Or enter your password" : "Password")
+            .font(.headline)
+          SecureField("Password", text: $model.password)
+            .textFieldStyle(.roundedBorder)
+            .textContentType(model.isCreating ? .newPassword : .password)
+            .onSubmit(model.unlockWithPassword)
+          if model.isCreating {
+            SecureField("Confirm Password", text: $model.confirmedPassword)
+              .textFieldStyle(.roundedBorder)
+              .textContentType(.newPassword)
+              .onSubmit(model.unlockWithPassword)
+          }
+          if model.touchIDAvailable && !model.hasStoredKey {
+            Toggle("Use Touch ID on this Mac", isOn: $model.rememberWithTouchID)
+          }
+
+          HStack {
+            Spacer()
+            Button(model.isCreating ? "Create Vault" : "Unlock", action: model.unlockWithPassword)
+              .keyboardShortcut(.defaultAction)
+          }
+          .controlSize(.large)
         }
         .controlSize(.large)
+        .padding(.bottom)
 
         Menu("Vault Options", systemImage: "ellipsis.circle") {
           Button("Choose Another Vault…") { model.chooseVault(create: false) }
@@ -157,23 +194,28 @@ private struct UnlockView: View {
       }
       // Keep the form readable without stretching controls across a large Mac window.
       .frame(maxWidth: 360)
-      .controlSize(.large)
       Spacer()
     }
     .padding()
   }
 
   private var title: String {
-    model.isCreating
-      ? "Create a Vault"
-      : "Unlock \(model.vaultURL?.lastPathComponent ?? "Vault")"
+    model.isCreating ? "Create a Vault" : "Unlock Vault"
+  }
+
+  private var vaultName: String {
+    model.vaultURL?.lastPathComponent ?? "Vault"
+  }
+
+  private var vaultPath: String {
+    model.vaultURL?.path ?? ""
   }
 
   private var subtitle: String {
     if model.isCreating {
       "Choose a password to protect this encrypted folder."
     } else if model.hasStoredKey {
-      "Enter your password or use Touch ID."
+      "Use Touch ID or enter your password."
     } else {
       "Enter your password to continue."
     }
