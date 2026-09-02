@@ -33,16 +33,26 @@ struct SecureThumbnail: View {
   private func load() async {
     guard !item.isDirectory else { return }
     let type = UTType(filenameExtension: item.name.pathExtension) ?? .data
-    guard type.conforms(to: .image) || type.conforms(to: .pdf) else { return }
+    guard
+      type.conforms(to: .image) || type.conforms(to: .pdf) || type.conforms(to: .movie)
+    else { return }
     do {
       let reader = try vault.reader(for: item)
-      let data = try await Task.detached { try reader.readAll() }.value
-      guard !Task.isCancelled else { return }
-      if type.conforms(to: .image) {
-        thumbnail = imageThumbnail(from: data)
+      if type.conforms(to: .image) || type.conforms(to: .pdf) {
+        let data = try await Task.detached { try reader.readAll() }.value
+        guard !Task.isCancelled else { return }
+        if type.conforms(to: .image) {
+          thumbnail = imageThumbnail(from: data)
+        } else {
+          thumbnail = PDFDocument(data: data)?.page(at: 0)?.thumbnail(
+            of: NSSize(width: 160, height: 160), for: .mediaBox)
+        }
       } else {
-        thumbnail = PDFDocument(data: data)?.page(at: 0)?.thumbnail(
-          of: NSSize(width: 160, height: 160), for: .mediaBox)
+        let image = try await EncryptedMediaAsset(
+          reader: reader, type: type, name: item.name
+        ).thumbnail()
+        guard !Task.isCancelled else { return }
+        thumbnail = image
       }
     } catch {
       thumbnail = nil
@@ -219,15 +229,12 @@ private struct PlayerPreview: NSViewRepresentable {
 @MainActor
 private final class PlayerSession {
   let player: AVPlayer
-  private let loader: EncryptedAssetLoader
+  private let source: EncryptedMediaAsset
   private let looper: AVPlayerLooper?
 
   init(reader: EncryptedFileReader, type: UTType, name: String) throws {
-    loader = EncryptedAssetLoader(reader: reader, type: type)
-    let ext = name.pathExtension.isEmpty ? "bin" : name.pathExtension
-    let asset = AVURLAsset(url: URL(string: "encrypted-folder://vault/asset.\(ext)")!)
-    asset.resourceLoader.setDelegate(loader, queue: loader.queue)
-    let item = AVPlayerItem(asset: asset)
+    source = EncryptedMediaAsset(reader: reader, type: type, name: name)
+    let item = AVPlayerItem(asset: source.asset)
     if type.conforms(to: .movie) {
       let player = AVQueuePlayer()
       self.player = player
@@ -237,6 +244,26 @@ private final class PlayerSession {
       player = AVPlayer(playerItem: item)
       looper = nil
     }
+  }
+}
+
+private final class EncryptedMediaAsset {
+  let asset: AVURLAsset
+  private let loader: EncryptedAssetLoader
+
+  init(reader: EncryptedFileReader, type: UTType, name: String) {
+    loader = EncryptedAssetLoader(reader: reader, type: type)
+    let ext = name.pathExtension.isEmpty ? "bin" : name.pathExtension
+    asset = AVURLAsset(url: URL(string: "encrypted-folder://vault/asset.\(ext)")!)
+    asset.resourceLoader.setDelegate(loader, queue: loader.queue)
+  }
+
+  func thumbnail() async throws -> NSImage {
+    let generator = AVAssetImageGenerator(asset: asset)
+    generator.appliesPreferredTrackTransform = true
+    generator.maximumSize = NSSize(width: 320, height: 320)
+    let (image, _) = try await generator.image(at: .zero)
+    return NSImage(cgImage: image, size: .zero)
   }
 }
 
