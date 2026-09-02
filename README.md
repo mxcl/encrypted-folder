@@ -5,6 +5,23 @@ Finder for an encrypted folder. No mount, no container, no plaintext temp files.
 > [!WARNING]
 > This is new software with a new file format. Keep backups of the whole vault, especially `encrypted-folder.json`. Lose that file and the ciphertext is decorative.
 
+## Why?
+
+I have used Encrypted Sparse Bundles for encrypting files before, but I am not
+a huge fan because:
+
+- Size is larger than content
+- Not resizable
+- If bitrot† occurs then multiple files or even *the entire* contents is lost
+- Opening files from the sparsebundle hands apps the decrypted files
+- Probably even viewing the contents in Finder may end up storing decrypted copies in caches
+
+> † All storage formats may randomly flip bits. Hence you want to store data
+> on a RAID with ECC (error-correcting code) enabled. However that is not
+> usually convenient. Bitrot is inevitable, but all the same: unlikely.
+
+Hence this app.
+
 ## Install it
 
 ```sh
