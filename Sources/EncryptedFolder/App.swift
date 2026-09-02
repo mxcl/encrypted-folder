@@ -273,9 +273,8 @@ private struct BrowserView: View {
       else { return }
       model.enter(item)
     }
-    .dropDestination(for: URL.self) { urls, _ in
+    .vaultDropDestination(for: URL.self) { urls in
       model.importItems(at: urls)
-      return true
     }
     .onDeleteCommand(perform: model.confirmDelete)
   }
@@ -286,34 +285,39 @@ private struct BrowserView: View {
         columns: [GridItem(.adaptive(minimum: 88, maximum: 120), spacing: 12)], spacing: 12
       ) {
         ForEach(model.items) { item in
-          Button {
-            select(item)
-          } label: {
-            VStack(spacing: 7) {
-              SecureThumbnail(
-                vault: vault,
-                item: item,
-                fallbackIcon: item.isDirectory ? "folder.fill" : icon(for: item)
-              )
-              .frame(maxWidth: 72, minHeight: 56, maxHeight: 56)
-              Text(item.name)
-                .font(.caption)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-            }
-            .padding(8)
-            .frame(maxWidth: .infinity)
-            .background(
-              model.selection.contains(item.id) ? Color.accentColor.opacity(0.2) : .clear,
-              in: RoundedRectangle(cornerRadius: 8)
+          VStack(spacing: 7) {
+            SecureThumbnail(
+              vault: vault,
+              item: item,
+              fallbackIcon: item.isDirectory ? "folder.fill" : icon(for: item)
             )
-            .contentShape(Rectangle())
+            .frame(maxWidth: 72, minHeight: 56, maxHeight: 56)
+            Text(item.name)
+              .font(.caption)
+              .lineLimit(2)
+              .multilineTextAlignment(.center)
           }
-          .buttonStyle(.plain)
+          .padding(8)
+          .frame(maxWidth: .infinity)
+          .background(
+            model.selection.contains(item.id) ? Color.accentColor.opacity(0.2) : .clear,
+            in: RoundedRectangle(cornerRadius: 8)
+          )
+          .contentShape(Rectangle())
+          .onTapGesture { select(item) }
           .simultaneousGesture(TapGesture(count: 2).onEnded { model.enter(item) })
+          .focusable()
+          .onKeyPress(.return) {
+            select(item)
+            return .handled
+          }
+          .accessibilityElement(children: .combine)
+          .accessibilityAddTraits(.isButton)
+          .accessibilityAction { select(item) }
           .draggable(transfer(for: item))
-          .dropDestination(for: VaultItemTransfer.self) { transfers, _ in
-            item.isDirectory && move(transfers, into: item.encryptedURL)
+          .vaultDropDestination(for: VaultItemTransfer.self, isEnabled: item.isDirectory) {
+            transfers in
+            _ = move(transfers, into: item.encryptedURL)
           }
           .contextMenu {
             itemActions(for: contextSelection(for: item))
@@ -322,9 +326,8 @@ private struct BrowserView: View {
       }
       .padding(16)
     }
-    .dropDestination(for: URL.self) { urls, _ in
+    .vaultDropDestination(for: URL.self) { urls in
       model.importItems(at: urls)
-      return true
     }
     .onDeleteCommand(perform: model.confirmDelete)
   }
@@ -347,8 +350,8 @@ private struct BrowserView: View {
         }
         Button(choice.name) { model.navigate(to: choice) }
           .buttonStyle(.plain)
-          .dropDestination(for: VaultItemTransfer.self) { transfers, _ in
-            move(transfers, into: choice.url)
+          .vaultDropDestination(for: VaultItemTransfer.self) { transfers in
+            _ = move(transfers, into: choice.url)
           }
       }
       Spacer()
@@ -475,4 +478,22 @@ private struct VaultCommands: Commands {
 
 extension String {
   fileprivate var pathExtension: String { (self as NSString).pathExtension }
+}
+
+extension View {
+  @ViewBuilder fileprivate func vaultDropDestination<T: Transferable>(
+    for type: T.Type,
+    isEnabled: Bool = true,
+    action: @escaping ([T]) -> Void
+  ) -> some View {
+    if #available(macOS 26, *) {
+      dropDestination(for: type, isEnabled: isEnabled) { items, _ in action(items) }
+    } else {
+      dropDestination(for: type) { items, _ in
+        guard isEnabled else { return false }
+        action(items)
+        return true
+      }
+    }
+  }
 }
