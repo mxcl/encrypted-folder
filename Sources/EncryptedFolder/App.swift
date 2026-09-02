@@ -104,56 +104,79 @@ private struct UnlockView: View {
   @State private var authenticationContext = LAContext()
 
   var body: some View {
-    VStack(spacing: 20) {
-      Image(systemName: model.isCreating ? "folder.badge.plus" : "lock.square")
-        .font(.system(size: 52))
-        .foregroundStyle(.secondary)
-      Text(
-        model.isCreating ? "Create Vault" : "Unlock \(model.vaultURL?.lastPathComponent ?? "Vault")"
-      )
-      .font(.title2)
-      if model.hasStoredKey {
-        LocalAuthenticationView(
-          "Unlock with Touch ID",
-          reason: Text("Unlock this encrypted folder"),
-          context: authenticationContext
-        ) { result in
-          if case .success = result {
-            model.unlockWithTouchID(context: authenticationContext)
-          }
-        }
-      }
-      VStack(spacing: 12) {
+    VStack {
+      Spacer()
+      VStack {
+        Image(systemName: model.isCreating ? "folder.badge.plus" : "lock.fill")
+          .font(.largeTitle)
+          .symbolRenderingMode(.hierarchical)
+          .foregroundStyle(.tint)
+          .accessibilityHidden(true)
+        Text(title)
+          .font(.title2.bold())
+          .accessibilityAddTraits(.isHeader)
+        Text(subtitle)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+
         SecureField("Password", text: $model.password)
           .textFieldStyle(.roundedBorder)
+          .textContentType(model.isCreating ? .newPassword : .password)
           .onSubmit(model.unlockWithPassword)
         if model.isCreating {
-          SecureField("Confirm password", text: $model.confirmedPassword)
+          SecureField("Confirm Password", text: $model.confirmedPassword)
             .textFieldStyle(.roundedBorder)
+            .textContentType(.newPassword)
             .onSubmit(model.unlockWithPassword)
         }
-        if model.touchIDAvailable {
-          Toggle("Store the key for Touch ID", isOn: $model.rememberWithTouchID)
+        if model.touchIDAvailable && !model.hasStoredKey {
+          Toggle("Use Touch ID on this Mac", isOn: $model.rememberWithTouchID)
         }
-      }
-      .frame(width: 320)
-      HStack {
-        Button(model.isCreating ? "Create" : "Unlock", action: model.unlockWithPassword)
-          .buttonStyle(.borderedProminent)
-          .disabled(model.password.isEmpty || (model.isCreating && model.confirmedPassword.isEmpty))
-      }
-      HStack {
-        Button("Choose Another…") { model.chooseVault(create: false) }
-          .buttonStyle(.link)
-        Button("New Vault…") { model.chooseVault(create: true) }
-          .buttonStyle(.link)
-        if model.hasStoredKey {
-          Button("Forget Touch ID", action: model.forgetTouchID)
-            .buttonStyle(.link)
+
+        HStack {
+          if model.hasStoredKey {
+            Button("Use Touch ID", systemImage: "touchid") {
+              model.unlockWithTouchID(context: authenticationContext)
+            }
+          }
+          Spacer()
+          Button(model.isCreating ? "Create Vault" : "Unlock", action: model.unlockWithPassword)
+            .keyboardShortcut(.defaultAction)
         }
+        .controlSize(.large)
+
+        Menu("Vault Options", systemImage: "ellipsis.circle") {
+          Button("Choose Another Vault…") { model.chooseVault(create: false) }
+          Button("Create New Vault…") { model.chooseVault(create: true) }
+          if model.hasStoredKey {
+            Divider()
+            Button("Forget Touch ID", action: model.forgetTouchID)
+          }
+        }
+        .menuStyle(.borderlessButton)
       }
+      // Keep the form readable without stretching controls across a large Mac window.
+      .frame(maxWidth: 360)
+      .controlSize(.large)
+      Spacer()
     }
-    .padding(40)
+    .padding()
+  }
+
+  private var title: String {
+    model.isCreating
+      ? "Create a Vault"
+      : "Unlock \(model.vaultURL?.lastPathComponent ?? "Vault")"
+  }
+
+  private var subtitle: String {
+    if model.isCreating {
+      "Choose a password to protect this encrypted folder."
+    } else if model.hasStoredKey {
+      "Enter your password or use Touch ID."
+    } else {
+      "Enter your password to continue."
+    }
   }
 }
 
